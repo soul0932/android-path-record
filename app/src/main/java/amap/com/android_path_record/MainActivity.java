@@ -42,8 +42,10 @@ import java.util.Date;
 import java.util.List;
 
 import amap.com.database.DbAdapter;
+import amap.com.record.LocationEntity;
 import amap.com.record.PathRecord;
 import amap.com.record.Record;
+import amap.com.record.Record_;
 import amap.com.recorduitl.ObjectBox;
 import amap.com.recorduitl.Util;
 import io.objectbox.Box;
@@ -73,6 +75,7 @@ public class MainActivity extends Activity implements LocationSource,
     private TextView mResultShow;
     private Marker mlocMarker;
     private Box<Record> recordBox;
+    private List<Record> records;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -86,6 +89,7 @@ public class MainActivity extends Activity implements LocationSource,
         recordBox = ObjectBox.get().boxFor(Record.class);
         init();
         initpolyline();
+        records = recordBox.query().order(Record_.time).build().find();
     }
 
     /**
@@ -128,7 +132,7 @@ public class MainActivity extends Activity implements LocationSource,
 
     protected void saveRecord(List<AMapLocation> list, String time) {
         if (list != null && list.size() > 0) {
-            DbHepler = new DbAdapter(this);
+          /*  DbHepler = new DbAdapter(this);
             DbHepler.open();
             String duration = getDuration();
             float distance = getDistance(list);
@@ -140,15 +144,21 @@ public class MainActivity extends Activity implements LocationSource,
             String endpoint = amapLocationToString(lastLocaiton);
             DbHepler.createrecord(String.valueOf(distance), duration, average,
                     pathlineSring, stratpoint, endpoint, time);
-            DbHepler.close();
+            DbHepler.close();*/
+            String duration = getDuration();
+            float distance = getDistance(list);
+            String average = getAverage(distance);
             Record record = new Record();
             record.average = average;
             record.distance = distance;
             record.duration = duration;
             record.average = average;
-            record.pathlineSring = pathlineSring;
-            record.stratpoint = stratpoint;
-            record.endpoint = endpoint;
+            for (AMapLocation item : list) {
+                LocationEntity entity = new LocationEntity();
+                entity.latitude = item.getLatitude();
+                entity.longitude = item.getLongitude();
+                record.locationPoints.add(entity);
+            }
             recordBox.put(record);
         } else {
             Toast.makeText(MainActivity.this, "没有记录到路径", Toast.LENGTH_SHORT)
@@ -414,6 +424,7 @@ public class MainActivity extends Activity implements LocationSource,
                 mTraceoverlay.add(linepoints);
                 mDistance += distance;
                 mTraceoverlay.setDistance(mTraceoverlay.getDistance() + distance);
+                mResultShow.setText("距离：" + mDistance + "米");
                 if (mlocMarker == null) {
                     mlocMarker = mAMap.addMarker(new MarkerOptions().position(linepoints.get(linepoints.size() - 1))
                             .icon(BitmapDescriptorFactory
@@ -449,4 +460,12 @@ public class MainActivity extends Activity implements LocationSource,
         }
         return distance;
     }
+ /*   private double getDistance(AMapLocation curLocation) {
+        double distance;
+        distance = AMapUtils.calculateLineDistance(new LatLng(privLocation.getLatitude(),
+                privLocation.getLongitude()), new LatLng(curLocation.getLatitude(),
+                curLocation.getLongitude()));
+        distance += distance;
+        return distance;
+    }*/
 }

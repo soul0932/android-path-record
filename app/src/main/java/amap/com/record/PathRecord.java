@@ -18,6 +18,7 @@ public class PathRecord {
 	private String mDuration;
 	private String mAveragespeed;
 	private String mDate;
+
 	private int mId = 0;
 
 	public PathRecord() {
