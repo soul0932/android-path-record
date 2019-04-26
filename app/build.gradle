@@ -1,11 +1,12 @@
 apply plugin: 'com.android.application'
 
+
 android {
     compileSdkVersion 27
     buildToolsVersion "28.0.2"
     defaultConfig {
         applicationId "amap.com.android_path_record"
-        minSdkVersion 14
+        minSdkVersion 15
         targetSdkVersion 27
         versionCode 1
         versionName "1.0"
@@ -41,5 +42,8 @@ dependencies {
     compile 'com.android.support:appcompat-v7:27.0.1'
     compile 'com.amap.api:3dmap:latest.integration'
     compile 'com.amap.api:location:latest.integration'
+    debugImplementation "io.objectbox:objectbox-android-objectbrowser:$objectboxVersion"
+    releaseImplementation "io.objectbox:objectbox-android:$objectboxVersion"
     testCompile 'junit:junit:4.12'
 }
+apply plugin: 'io.objectbox' // apply last
