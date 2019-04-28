@@ -5,6 +5,7 @@ import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.content.Intent;
 import android.graphics.Color;
+import android.location.Location;
 import android.os.Bundle;
 import android.support.v4.app.ActivityCompat;
 import android.util.Log;
@@ -17,23 +18,15 @@ import android.widget.ToggleButton;
 import com.amap.api.location.AMapLocation;
 import com.amap.api.location.AMapLocationClient;
 import com.amap.api.location.AMapLocationClientOption;
-import com.amap.api.location.AMapLocationClientOption.AMapLocationMode;
-import com.amap.api.location.AMapLocationListener;
 import com.amap.api.maps.AMap;
 import com.amap.api.maps.AMapUtils;
 import com.amap.api.maps.CameraUpdateFactory;
-import com.amap.api.maps.LocationSource;
 import com.amap.api.maps.MapView;
 import com.amap.api.maps.model.BitmapDescriptorFactory;
 import com.amap.api.maps.model.LatLng;
-import com.amap.api.maps.model.Marker;
-import com.amap.api.maps.model.MarkerOptions;
+import com.amap.api.maps.model.MyLocationStyle;
 import com.amap.api.maps.model.Polyline;
 import com.amap.api.maps.model.PolylineOptions;
-import com.amap.api.trace.LBSTraceClient;
-import com.amap.api.trace.TraceListener;
-import com.amap.api.trace.TraceLocation;
-import com.amap.api.trace.TraceOverlay;
 
 import java.text.DecimalFormat;
 import java.text.SimpleDateFormat;
@@ -41,41 +34,34 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 
-import amap.com.database.DbAdapter;
 import amap.com.record.LocationEntity;
-import amap.com.record.PathRecord;
 import amap.com.record.Record;
-import amap.com.record.Record_;
 import amap.com.recorduitl.ObjectBox;
-import amap.com.recorduitl.Util;
 import io.objectbox.Box;
 
 
-public class MainActivity extends Activity implements LocationSource,
-        AMapLocationListener, TraceListener {
-    private final static int CALLTRACE = 0;
+public class MainActivity extends Activity implements AMap.OnMyLocationChangeListener {
     private MapView mMapView;
-    private AMap mAMap;
-    private OnLocationChangedListener mListener;
+    private AMap aMap;
     private AMapLocationClient mLocationClient;
     private AMapLocationClientOption mLocationOption;
-    private PolylineOptions mPolyoptions, tracePolytion;
+    private PolylineOptions mPolyoptions;
     private Polyline mpolyline;
-    private PathRecord record;
+    private Record record;
     private long mStartTime;
     private long mEndTime;
     private ToggleButton btn;
-    private DbAdapter DbHepler;
-    private List<TraceLocation> mTracelocationlist = new ArrayList<TraceLocation>();
-    private List<TraceOverlay> mOverlayList = new ArrayList<TraceOverlay>();
-    private List<AMapLocation> recordList = new ArrayList<AMapLocation>();
-    private int tracesize = 30;
-    private int mDistance = 0;
-    private TraceOverlay mTraceoverlay;
+    private List<Location> recordList = new ArrayList<Location>();
+    private Location lastLocation;
+    private float mDistance = 0;
     private TextView mResultShow;
-    private Marker mlocMarker;
     private Box<Record> recordBox;
-    private List<Record> records;
+    private static final int STROKE_COLOR = Color.argb(180, 3, 145, 255);
+    private static final int FILL_COLOR = Color.argb(10, 0, 0, 180);
+    private DecimalFormat decimalFormat = new DecimalFormat("0.00");
+    private boolean firstLocate = true;
+    MyLocationStyle myLocationStyle;
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -89,15 +75,15 @@ public class MainActivity extends Activity implements LocationSource,
         recordBox = ObjectBox.get().boxFor(Record.class);
         init();
         initpolyline();
-        records = recordBox.query().order(Record_.time).build().find();
     }
 
     /**
      * 初始化AMap对象
      */
     private void init() {
-        if (mAMap == null) {
-            mAMap = mMapView.getMap();
+        if (aMap == null) {
+            aMap = mMapView.getMap();
+            aMap.moveCamera(CameraUpdateFactory.zoomTo(18));
             setUpMap();
         }
         btn = (ToggleButton) findViewById(R.id.locationbtn);
@@ -105,33 +91,28 @@ public class MainActivity extends Activity implements LocationSource,
             @Override
             public void onClick(View v) {
                 if (btn.isChecked()) {
-                    mAMap.clear(true);
+                    aMap.clear(true);
                     if (record != null) {
                         record = null;
                     }
-                    record = new PathRecord();
+                    record = new Record();
                     mStartTime = System.currentTimeMillis();
-                    record.setDate(getcueDate(mStartTime));
                     mResultShow.setText("总距离");
                 } else {
                     mEndTime = System.currentTimeMillis();
-                    mOverlayList.add(mTraceoverlay);
-                    DecimalFormat decimalFormat = new DecimalFormat("0.0");
                     mResultShow.setText(
-                            decimalFormat.format(getTotalDistance() / 1000d) + "KM");
-                    LBSTraceClient mTraceClient = new LBSTraceClient(getApplicationContext());
-                    mTraceClient.queryProcessedTrace(2, Util.parseTraceLocationList(record.getPathline()), LBSTraceClient.TYPE_AMAP, MainActivity.this);
-                    saveRecord(record.getPathline(), record.getDate());
+                            decimalFormat.format(mDistance / 1000d) + "KM");
+                    //LBSTraceClient mTraceClient = new LBSTraceClient(getApplicationContext());
+                    // mTraceClient.queryProcessedTrace(2, Util.parseTraceLocationList(recordList), LBSTraceClient.TYPE_AMAP, MainActivity.this);
+                    saveRecord();
                 }
             }
         });
         mResultShow = (TextView) findViewById(R.id.show_all_dis);
-
-        mTraceoverlay = new TraceOverlay(mAMap);
     }
 
-    protected void saveRecord(List<AMapLocation> list, String time) {
-        if (list != null && list.size() > 0) {
+    protected void saveRecord() {
+        if (recordList != null && recordList.size() > 0) {
           /*  DbHepler = new DbAdapter(this);
             DbHepler.open();
             String duration = getDuration();
@@ -146,17 +127,20 @@ public class MainActivity extends Activity implements LocationSource,
                     pathlineSring, stratpoint, endpoint, time);
             DbHepler.close();*/
             String duration = getDuration();
-            float distance = getDistance(list);
-            String average = getAverage(distance);
+            String average = getAverage(mDistance);
             Record record = new Record();
             record.average = average;
-            record.distance = distance;
+            record.distance = mDistance;
             record.duration = duration;
             record.average = average;
-            for (AMapLocation item : list) {
+            record.time = (getcueDate(mStartTime));
+            for (Location item : recordList) {
                 LocationEntity entity = new LocationEntity();
                 entity.latitude = item.getLatitude();
                 entity.longitude = item.getLongitude();
+                entity.location = item.getLongitude() + "," + item.getLatitude();
+                entity.accuracy = item.getAccuracy();
+                entity.direction = item.getBearing();
                 record.locationPoints.add(entity);
             }
             recordBox.put(record);
@@ -173,15 +157,15 @@ public class MainActivity extends Activity implements LocationSource,
     private String getAverage(float distance) {
         return String.valueOf(distance / (float) (mEndTime - mStartTime));
     }
-
-    private float getDistance(List<AMapLocation> list) {
+/*
+    private float getDistance(List<Location> list) {
         float distance = 0;
         if (list == null || list.size() == 0) {
             return distance;
         }
         for (int i = 0; i < list.size() - 1; i++) {
-            AMapLocation firstpoint = list.get(i);
-            AMapLocation secondpoint = list.get(i + 1);
+            Location firstpoint = list.get(i);
+            Location secondpoint = list.get(i + 1);
             LatLng firstLatLng = new LatLng(firstpoint.getLatitude(),
                     firstpoint.getLongitude());
             LatLng secondLatLng = new LatLng(secondpoint.getLatitude(),
@@ -191,7 +175,7 @@ public class MainActivity extends Activity implements LocationSource,
             distance = (float) (distance + betweenDis);
         }
         return distance;
-    }
+    }*/
 
     private String getPathLineString(List<AMapLocation> list) {
         if (list == null || list.size() == 0) {
@@ -223,21 +207,29 @@ public class MainActivity extends Activity implements LocationSource,
     private void initpolyline() {
         mPolyoptions = new PolylineOptions();
         mPolyoptions.width(10f);
-        mPolyoptions.color(Color.GRAY);
-        tracePolytion = new PolylineOptions();
-        tracePolytion.width(40);
-        tracePolytion.setCustomTexture(BitmapDescriptorFactory.fromResource(R.drawable.grasp_trace_line));
+        mPolyoptions.color(Color.BLUE);
     }
 
     /**
      * 设置一些amap的属性
      */
     private void setUpMap() {
-        mAMap.setLocationSource(this);// 设置定位监听
-        mAMap.getUiSettings().setMyLocationButtonEnabled(true);// 设置默认定位按钮是否显示
-        mAMap.setMyLocationEnabled(true);// 设置为true表示显示定位层并可触发定位，false表示隐藏定位层并不可触发定位，默认是false
-        // 设置定位的类型为定位模式 ，可以由定位、跟随或地图根据面向方向旋转几种
-        mAMap.setMyLocationType(AMap.LOCATION_TYPE_LOCATE);
+        aMap.getUiSettings().setMyLocationButtonEnabled(true);// 设置默认定位按钮是否显示
+        aMap.setMyLocationEnabled(true);// 设置为true表示显示定位层并可触发定位，false表示隐藏定位层并不可触发定位，默认是false
+        // 自定义系统定位蓝点
+        myLocationStyle = new MyLocationStyle();
+        // 自定义定位蓝点图标
+        myLocationStyle.myLocationIcon(BitmapDescriptorFactory.
+                fromResource(R.drawable.gps_point));
+        // 自定义精度范围的圆形边框颜色
+        myLocationStyle.strokeColor(STROKE_COLOR);
+        //自定义精度范围的圆形边框宽度
+        myLocationStyle.strokeWidth(3);
+        // 设置圆形的填充颜色
+        myLocationStyle.radiusFillColor(FILL_COLOR);
+        // 将自定义的 myLocationStyle 对象添加到地图上
+        aMap.setMyLocationStyle(myLocationStyle);
+        aMap.setOnMyLocationChangeListener(this);
     }
 
     /**
@@ -276,89 +268,27 @@ public class MainActivity extends Activity implements LocationSource,
         mMapView.onDestroy();
     }
 
-    @Override
-    public void activate(OnLocationChangedListener listener) {
-        mListener = listener;
-        startlocation();
-    }
-
-    @Override
-    public void deactivate() {
-        mListener = null;
-        if (mLocationClient != null) {
-            mLocationClient.stopLocation();
-            mLocationClient.onDestroy();
-
-        }
-        mLocationClient = null;
-    }
-
-    /**
-     * 定位结果回调
-     *
-     * @param amapLocation 位置信息类
-     */
-    @Override
-    public void onLocationChanged(AMapLocation amapLocation) {
-        if (mListener != null && amapLocation != null) {
-            if (amapLocation != null && amapLocation.getErrorCode() == 0) {
-                mListener.onLocationChanged(amapLocation);// 显示系统小蓝点
-                LatLng mylocation = new LatLng(amapLocation.getLatitude(),
-                        amapLocation.getLongitude());
-                mAMap.moveCamera(CameraUpdateFactory.changeLatLng(mylocation));
-                if (btn.isChecked()) {
-                    record.addpoint(amapLocation);
-                    mPolyoptions.add(mylocation);
-                    mTracelocationlist.add(Util.parseTraceLocation(amapLocation));
-                    redrawline();
-                    if (mTracelocationlist.size() > tracesize - 1) {
-                        trace();
-                    }
-                }
-            } else {
-                String errText = "定位失败," + amapLocation.getErrorCode() + ": "
-                        + amapLocation.getErrorInfo();
-                Log.e("AmapErr", errText);
-            }
-        }
-    }
-
-    /**
-     * 开始定位。
-     */
-    private void startlocation() {
-        if (mLocationClient == null) {
-            mLocationClient = new AMapLocationClient(this);
-            mLocationOption = new AMapLocationClientOption();
-            // 设置定位监听
-            mLocationClient.setLocationListener(this);
-            // 设置为高精度定位模式
-            mLocationOption.setLocationMode(AMapLocationMode.Hight_Accuracy);
-
-            mLocationOption.setInterval(2000);
-
-            // 设置定位参数
-            mLocationClient.setLocationOption(mLocationOption);
-            // 此方法为每隔固定时间会发起一次定位请求，为了减少电量消耗或网络流量消耗，
-            // 注意设置合适的定位时间的间隔（最小间隔支持为2000ms），并且在合适时间调用stopLocation()方法来取消定位请求
-            // 在定位结束后，在合适的生命周期调用onDestroy()方法
-            // 在单次定位情况下，定位无论成功与否，都无需调用stopLocation()方法移除请求，定位sdk内部会移除
-            mLocationClient.startLocation();
-
-        }
-    }
-
     /**
      * 实时轨迹画线
      */
-    private void redrawline() {
-        if (mPolyoptions.getPoints().size() > 1) {
+    private void redrawline(Location curLocation) {
+        if (curLocation.getLatitude() != 0.0 && curLocation.getLongitude() != 0.0
+                && lastLocation.getLongitude() != 0.0 && lastLocation.getLatitude() != 0.0) {
+            PolylineOptions options = new PolylineOptions();
+            //上一个点的经纬度
+            options.add(new LatLng(lastLocation.getLatitude(), lastLocation.getLongitude()));
+            //当前的经纬度
+            options.add(new LatLng(curLocation.getLatitude(), curLocation.getLongitude()));
+            options.width(10).geodesic(true).color(Color.GREEN);
+            aMap.addPolyline(options);
+        }
+      /*  if (mPolyoptions.getPoints().size() > 1) {
             if (mpolyline != null) {
                 mpolyline.setPoints(mPolyoptions.getPoints());
             } else {
-                mpolyline = mAMap.addPolyline(mPolyoptions);
+                mpolyline = aMap.addPolyline(mPolyoptions);
             }
-        }
+        }*/
 //		if (mpolyline != null) {
 //			mpolyline.remove();
 //		}
@@ -383,89 +313,35 @@ public class MainActivity extends Activity implements LocationSource,
         startActivity(intent);
     }
 
-    private void trace() {
-        List<TraceLocation> locationList = new ArrayList<>(mTracelocationlist);
-        LBSTraceClient mTraceClient = new LBSTraceClient(getApplicationContext());
-        mTraceClient.queryProcessedTrace(1, locationList, LBSTraceClient.TYPE_AMAP, this);
-        TraceLocation lastlocation = mTracelocationlist.get(mTracelocationlist.size() - 1);
-        mTracelocationlist.clear();
-        mTracelocationlist.add(lastlocation);
-    }
-
-    /**
-     * 轨迹纠偏失败回调。
-     *
-     * @param i
-     * @param s
-     */
-    @Override
-    public void onRequestFailed(int i, String s) {
-        mOverlayList.add(mTraceoverlay);
-        mTraceoverlay = new TraceOverlay(mAMap);
-    }
-
-    @Override
-    public void onTraceProcessing(int i, int i1, List<LatLng> list) {
-
-    }
-
-    /**
-     * 轨迹纠偏成功回调。
-     *
-     * @param lineID      纠偏的线路ID
-     * @param linepoints  纠偏结果
-     * @param distance    总距离
-     * @param waitingtime 等待时间
-     */
-    @Override
-    public void onFinished(int lineID, List<LatLng> linepoints, int distance, int waitingtime) {
-        if (lineID == 1) {
-            if (linepoints != null && linepoints.size() > 0) {
-                mTraceoverlay.add(linepoints);
-                mDistance += distance;
-                mTraceoverlay.setDistance(mTraceoverlay.getDistance() + distance);
-                mResultShow.setText("距离：" + mDistance + "米");
-                if (mlocMarker == null) {
-                    mlocMarker = mAMap.addMarker(new MarkerOptions().position(linepoints.get(linepoints.size() - 1))
-                            .icon(BitmapDescriptorFactory
-                                    .fromResource(R.drawable.point))
-                            .title("距离：" + mDistance + "米"));
-                    mlocMarker.showInfoWindow();
-                } else {
-                    mlocMarker.setTitle("距离：" + mDistance + "米");
-                    Toast.makeText(MainActivity.this, "距离" + mDistance, Toast.LENGTH_SHORT).show();
-                    mlocMarker.setPosition(linepoints.get(linepoints.size() - 1));
-                    mlocMarker.showInfoWindow();
-                }
-            }
-        } else if (lineID == 2) {
-            if (linepoints != null && linepoints.size() > 0) {
-                mAMap.addPolyline(new PolylineOptions()
-                        .color(Color.RED)
-                        .width(40).addAll(linepoints));
-            }
-        }
-
-    }
-
-    /**
-     * 最后获取总距离
-     *
-     * @return
-     */
-    private int getTotalDistance() {
-        int distance = 0;
-        for (TraceOverlay to : mOverlayList) {
-            distance = distance + to.getDistance();
-        }
-        return distance;
-    }
- /*   private double getDistance(AMapLocation curLocation) {
-        double distance;
-        distance = AMapUtils.calculateLineDistance(new LatLng(privLocation.getLatitude(),
-                privLocation.getLongitude()), new LatLng(curLocation.getLatitude(),
+    private void getDistance(Location curLocation) {
+        if (lastLocation == null)
+            return;
+        float distance;
+        distance = AMapUtils.calculateLineDistance(new LatLng(lastLocation.getLatitude(),
+                lastLocation.getLongitude()), new LatLng(curLocation.getLatitude(),
                 curLocation.getLongitude()));
-        distance += distance;
-        return distance;
-    }*/
+        mDistance = mDistance + distance;
+        mResultShow.setText("总距离:" + decimalFormat.format(mDistance / 1000d) + "KM");
+    }
+
+    @Override
+    public void onMyLocationChange(Location location) {
+        if (firstLocate) {
+            myLocationStyle.interval(5000);
+            // 将自定义的 myLocationStyle 对象添加到地图上
+            aMap.setMyLocationStyle(myLocationStyle);
+            firstLocate = false;
+        }
+        if (location != null) {
+            getDistance(location);
+            lastLocation = location;
+            LatLng mylocation = new LatLng(location.getLatitude(),
+                    location.getLongitude());
+            recordList.add(location);
+            mPolyoptions.add(mylocation);
+            redrawline(location);
+        } else {
+            Log.e("amap", "定位失败");
+        }
+    }
 }

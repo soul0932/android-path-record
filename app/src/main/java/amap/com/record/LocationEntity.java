@@ -10,4 +10,9 @@ public class LocationEntity {
     public long id;
     public double latitude;
     public double longitude;
+    public long locatetime;
+    public String location;
+    public long speed;
+    public float direction;
+    public float accuracy;
 }

@@ -13,6 +13,10 @@ import java.util.List;
 
 import amap.com.database.DbAdapter;
 import amap.com.record.PathRecord;
+import amap.com.record.Record;
+import amap.com.record.Record_;
+import amap.com.recorduitl.ObjectBox;
+import io.objectbox.Box;
 
 /**
  * 所有轨迹list展示activity
@@ -24,6 +28,8 @@ public class RecordActivity extends Activity implements OnItemClickListener {
 	private ListView mAllRecordListView;
 	private DbAdapter mDataBaseHelper;
 	private List<PathRecord> mAllRecord = new ArrayList<PathRecord>();
+	private Box<Record> recordBox;
+	private List<Record> records;
 	public static final String RECORD_ID = "record_id";
 
 	@Override
@@ -31,16 +37,11 @@ public class RecordActivity extends Activity implements OnItemClickListener {
 		super.onCreate(savedInstanceState);
 		setContentView(R.layout.recordlist);
 		mAllRecordListView = (ListView) findViewById(R.id.recordlist);
-		mDataBaseHelper = new DbAdapter(this);
-		mDataBaseHelper.open();
-		searchAllRecordFromDB();
-		mAdapter = new RecordAdapter(this, mAllRecord);
+		recordBox = ObjectBox.get().boxFor(Record.class);
+		records = recordBox.query().order(Record_.time).build().find();
+		mAdapter = new RecordAdapter(this, records);
 		mAllRecordListView.setAdapter(mAdapter);
 		mAllRecordListView.setOnItemClickListener(this);
-	}
-
-	private void searchAllRecordFromDB() {
-		mAllRecord = mDataBaseHelper.queryRecordAll();
 	}
 
 	public void onBackClick(View view) {
@@ -50,11 +51,11 @@ public class RecordActivity extends Activity implements OnItemClickListener {
 	@Override
 	public void onItemClick(AdapterView<?> parent, View view, int position,
 			long id) {
-		PathRecord recorditem = (PathRecord) parent.getAdapter().getItem(
+		Record recorditem = (Record) parent.getAdapter().getItem(
 				position);
 		Intent intent = new Intent(RecordActivity.this,
 				RecordShowActivity.class);
-		intent.putExtra(RECORD_ID, recorditem.getId());
+		intent.putExtra(RECORD_ID, recorditem.id);
 		startActivity(intent);
 	}
 }

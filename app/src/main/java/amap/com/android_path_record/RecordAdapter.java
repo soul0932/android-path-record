@@ -9,14 +9,14 @@ import android.widget.BaseAdapter;
 import android.widget.TextView;
 
 
-import amap.com.record.PathRecord;
+import amap.com.record.Record;
 
 public class RecordAdapter extends BaseAdapter {
 
 	private Context mContext;
-	private List<PathRecord> mRecordList;
+	private List<Record> mRecordList;
 
-	public RecordAdapter(Context context, List<PathRecord> list) {
+	public RecordAdapter(Context context, List<Record> list) {
 		this.mContext = context;
 		this.mRecordList = list;
 	}
@@ -50,9 +50,9 @@ public class RecordAdapter extends BaseAdapter {
 			holder = (ViewHolder) convertView.getTag();
 		}
 
-		PathRecord item = mRecordList.get(position);
-		holder.date.setText(item.getDate());
-		holder.record.setText(item.toString());
+		Record item = mRecordList.get(position);
+		holder.date.setText(item.time);
+		holder.record.setText(item.distance+item.average);
 		return convertView;
 	}
 

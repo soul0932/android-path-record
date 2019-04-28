@@ -1,5 +1,7 @@
 package amap.com.recorduitl;
 
+import android.location.Location;
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -9,7 +11,7 @@ import com.amap.api.trace.TraceLocation;
 
 public class Util {
 	/**
-	 * 将AMapLocation List 转为TraceLocation list
+	 * 将Location List 转为TraceLocation list
 	 * 
 	 * @param list
 	 * @return
@@ -22,28 +24,28 @@ public class Util {
 		}
 		for (int i = 0; i < list.size(); i++) {
 			TraceLocation location = new TraceLocation();
-			AMapLocation amapLocation = list.get(i);
-			location.setBearing(amapLocation.getBearing());
-			location.setLatitude(amapLocation.getLatitude());
-			location.setLongitude(amapLocation.getLongitude());
-			location.setSpeed(amapLocation.getSpeed());
-			location.setTime(amapLocation.getTime());
+			AMapLocation Location = list.get(i);
+			location.setBearing(Location.getBearing());
+			location.setLatitude(Location.getLatitude());
+			location.setLongitude(Location.getLongitude());
+			location.setSpeed(Location.getSpeed());
+			location.setTime(Location.getTime());
 			traceList.add(location);
 		}
 		return traceList;
 	}
-	public static TraceLocation parseTraceLocation(AMapLocation amapLocation) {
+	public static TraceLocation parseTraceLocation(Location Location) {
 		TraceLocation location = new TraceLocation();
-		location.setBearing(amapLocation.getBearing());
-		location.setLatitude(amapLocation.getLatitude());
-		location.setLongitude(amapLocation.getLongitude());
-		location.setSpeed(amapLocation.getSpeed());
-		location.setTime(amapLocation.getTime());
+		location.setBearing(Location.getBearing());
+		location.setLatitude(Location.getLatitude());
+		location.setLongitude(Location.getLongitude());
+		location.setSpeed(Location.getSpeed());
+		location.setTime(Location.getTime());
 		return  location;
 	}
 
 	/**
-	 * 将AMapLocation List 转为LatLng list
+	 * 将Location List 转为LatLng list
 	 * @param list
 	 * @return
 	 */

@@ -1,8 +1,11 @@
 package amap.com.record;
 
+import android.location.Location;
+
+import com.amap.api.location.AMapLocation;
+
 import java.util.ArrayList;
 import java.util.List;
-import com.amap.api.location.AMapLocation;
 
 /**
  * 用于记录一条轨迹，包括起点、终点、轨迹中间点、距离、耗时、平均速度、时间
