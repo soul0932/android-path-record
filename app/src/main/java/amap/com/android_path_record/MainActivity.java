@@ -110,6 +110,7 @@ public class MainActivity extends Activity implements AMapLocationListener {
                     }
                     record = new Record();
                     mStartTime = System.currentTimeMillis();
+                    record.time = (getcueDate(mStartTime));
                     mResultShow.setText("总距离");
                     mDistance = 0;
                 } else {
@@ -139,26 +140,12 @@ public class MainActivity extends Activity implements AMapLocationListener {
         locationClient.setLocationListener(this);
     }
 
-
     protected void saveRecord() {
         if (recordList != null && recordList.size() > 0) {
-            String duration = getDuration();
-            String average = getAverage(mDistance);
-            Record record = new Record();
-            record.average = average;
+            record.average = getAverage(mDistance);
             record.distance = getFloat(mDistance);
-            record.duration = duration;
-            record.average = average;
+            record.duration = getDuration();
             record.time = (getcueDate(mStartTime));
-            for (Location item : recordList) {
-                LocationEntity entity = new LocationEntity();
-                entity.latitude = item.getLatitude();
-                entity.longitude = item.getLongitude();
-                entity.location = item.getLongitude() + "," + item.getLatitude();
-                entity.accuracy = item.getAccuracy();
-                entity.direction = item.getBearing();
-                record.locationPoints.add(entity);
-            }
             recordBox.put(record);
         } else {
             Toast.makeText(MainActivity.this, "没有记录到路径", Toast.LENGTH_SHORT)
@@ -347,6 +334,14 @@ public class MainActivity extends Activity implements AMapLocationListener {
             lastLocation = aMapLocation;
             LatLng mylocation = new LatLng(aMapLocation.getLatitude(),
                     aMapLocation.getLongitude());
+            LocationEntity entity = new LocationEntity();
+            entity.latitude = aMapLocation.getLatitude();
+            entity.longitude = aMapLocation.getLongitude();
+            entity.location = aMapLocation.getLongitude() + "," + aMapLocation.getLatitude();
+            entity.accuracy = aMapLocation.getAccuracy();
+            entity.direction = aMapLocation.getBearing();
+            record.locationPoints.add(entity);
+            recordBox.put(record);
             recordList.add(aMapLocation);
             mPolyoptions.add(mylocation);
             redrawline();
