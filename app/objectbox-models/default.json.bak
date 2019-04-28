@@ -1,0 +1,83 @@
+{
+  "_note1": "KEEP THIS FILE! Check it into a version control system (VCS) like git.",
+  "_note2": "ObjectBox manages crucial IDs for your object model. See docs for details.",
+  "_note3": "If you have VCS merge conflicts, you must resolve them according to ObjectBox docs.",
+  "entities": [
+    {
+      "id": "1:8527867291075496868",
+      "lastPropertyId": "8:2335074309731912014",
+      "name": "Record",
+      "properties": [
+        {
+          "id": "1:5352596271202500936",
+          "name": "id"
+        },
+        {
+          "id": "2:1876218517999328655",
+          "name": "distance"
+        },
+        {
+          "id": "3:8800996797545334104",
+          "name": "duration"
+        },
+        {
+          "id": "4:5486105172786229548",
+          "name": "average"
+        },
+        {
+          "id": "5:2518315983382723095",
+          "name": "pathlineSring"
+        },
+        {
+          "id": "6:5694437160712237231",
+          "name": "stratpoint"
+        },
+        {
+          "id": "7:926789585288182674",
+          "name": "endpoint"
+        },
+        {
+          "id": "8:2335074309731912014",
+          "name": "time"
+        }
+      ],
+      "relations": [
+        {
+          "id": "1:5957012476880913251",
+          "name": "locationPoints"
+        }
+      ]
+    },
+    {
+      "id": "2:8587699688801623749",
+      "lastPropertyId": "3:5764520493567579475",
+      "name": "LocationEntity",
+      "properties": [
+        {
+          "id": "1:1490839445712668606",
+          "name": "id"
+        },
+        {
+          "id": "2:6865296833753280934",
+          "name": "latitude"
+        },
+        {
+          "id": "3:5764520493567579475",
+          "name": "longitude"
+        }
+      ],
+      "relations": []
+    }
+  ],
+  "lastEntityId": "2:8587699688801623749",
+  "lastIndexId": "0:0",
+  "lastRelationId": "1:5957012476880913251",
+  "lastSequenceId": "0:0",
+  "modelVersion": 4,
+  "modelVersionParserMinimum": 4,
+  "retiredEntityUids": [],
+  "retiredIndexUids": [],
+  "retiredPropertyUids": [],
+  "retiredRelationUids": [],
+  "version": 1
+}

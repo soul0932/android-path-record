@@ -13,51 +13,51 @@ import amap.com.record.Record;
 
 public class RecordAdapter extends BaseAdapter {
 
-	private Context mContext;
-	private List<Record> mRecordList;
+    private Context mContext;
+    private List<Record> mRecordList;
 
-	public RecordAdapter(Context context, List<Record> list) {
-		this.mContext = context;
-		this.mRecordList = list;
-	}
+    public RecordAdapter(Context context, List<Record> list) {
+        this.mContext = context;
+        this.mRecordList = list;
+    }
 
-	@Override
-	public int getCount() {
-		return mRecordList.size();
-	}
+    @Override
+    public int getCount() {
+        return mRecordList.size();
+    }
 
-	@Override
-	public Object getItem(int position) {
-		return mRecordList.get(position);
-	}
+    @Override
+    public Object getItem(int position) {
+        return mRecordList.get(position);
+    }
 
-	@Override
-	public long getItemId(int position) {
-		return position;
-	}
+    @Override
+    public long getItemId(int position) {
+        return position;
+    }
 
-	@Override
-	public View getView(int position, View convertView, ViewGroup parent) {
-		ViewHolder holder;
-		if (convertView == null) {
-			holder = new ViewHolder();
-			convertView = View.inflate(mContext, R.layout.recorditem, null);
-			holder.date = (TextView) convertView.findViewById(R.id.date);
-			holder.record = (TextView) convertView.findViewById(R.id.record);
+    @Override
+    public View getView(int position, View convertView, ViewGroup parent) {
+        ViewHolder holder;
+        if (convertView == null) {
+            holder = new ViewHolder();
+            convertView = View.inflate(mContext, R.layout.recorditem, null);
+            holder.date = (TextView) convertView.findViewById(R.id.date);
+            holder.record = (TextView) convertView.findViewById(R.id.record);
 
-			convertView.setTag(holder);
-		} else {
-			holder = (ViewHolder) convertView.getTag();
-		}
+            convertView.setTag(holder);
+        } else {
+            holder = (ViewHolder) convertView.getTag();
+        }
 
-		Record item = mRecordList.get(position);
-		holder.date.setText(item.time);
-		holder.record.setText(item.distance+item.average);
-		return convertView;
-	}
+        Record item = mRecordList.get(position);
+        holder.date.setText(item.time);
+        holder.record.setText("距离：" + item.distance + ",平均速度：" + item.average);
+        return convertView;
+    }
 
-	private class ViewHolder {
-		TextView date;
-		TextView record;
-	}
+    private class ViewHolder {
+        TextView date;
+        TextView record;
+    }
 }

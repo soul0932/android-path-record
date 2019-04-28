@@ -3,6 +3,10 @@ package amap.com.android_path_record;
 import android.Manifest;
 import android.annotation.SuppressLint;
 import android.app.Activity;
+import android.app.Notification;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
+import android.content.Context;
 import android.content.Intent;
 import android.graphics.Color;
 import android.location.Location;
@@ -18,9 +22,11 @@ import android.widget.ToggleButton;
 import com.amap.api.location.AMapLocation;
 import com.amap.api.location.AMapLocationClient;
 import com.amap.api.location.AMapLocationClientOption;
+import com.amap.api.location.AMapLocationListener;
 import com.amap.api.maps.AMap;
 import com.amap.api.maps.AMapUtils;
 import com.amap.api.maps.CameraUpdateFactory;
+import com.amap.api.maps.LocationSource;
 import com.amap.api.maps.MapView;
 import com.amap.api.maps.model.BitmapDescriptorFactory;
 import com.amap.api.maps.model.LatLng;
@@ -40,7 +46,7 @@ import amap.com.recorduitl.ObjectBox;
 import io.objectbox.Box;
 
 
-public class MainActivity extends Activity implements AMap.OnMyLocationChangeListener {
+public class MainActivity extends Activity implements AMapLocationListener {
     private MapView mMapView;
     private AMap aMap;
     private AMapLocationClient mLocationClient;
@@ -51,8 +57,8 @@ public class MainActivity extends Activity implements AMap.OnMyLocationChangeLis
     private long mStartTime;
     private long mEndTime;
     private ToggleButton btn;
-    private List<Location> recordList = new ArrayList<Location>();
-    private Location lastLocation;
+    private List<AMapLocation> recordList = new ArrayList<AMapLocation>();
+    private AMapLocation lastLocation;
     private float mDistance = 0;
     private TextView mResultShow;
     private Box<Record> recordBox;
@@ -61,6 +67,8 @@ public class MainActivity extends Activity implements AMap.OnMyLocationChangeLis
     private DecimalFormat decimalFormat = new DecimalFormat("0.00");
     private boolean firstLocate = true;
     MyLocationStyle myLocationStyle;
+    private AMapLocationClient locationClient = null;
+    private AMapLocationClientOption locationOption = null;
 
 
     @Override
@@ -75,6 +83,8 @@ public class MainActivity extends Activity implements AMap.OnMyLocationChangeLis
         recordBox = ObjectBox.get().boxFor(Record.class);
         init();
         initpolyline();
+        //初始化定位
+        initLocation();
     }
 
     /**
@@ -91,6 +101,9 @@ public class MainActivity extends Activity implements AMap.OnMyLocationChangeLis
             @Override
             public void onClick(View v) {
                 if (btn.isChecked()) {
+                    //启动后台定位
+                    locationClient.startLocation();
+                    locationClient.enableBackgroundLocation(2001, buildNotification());
                     aMap.clear(true);
                     if (record != null) {
                         record = null;
@@ -98,7 +111,10 @@ public class MainActivity extends Activity implements AMap.OnMyLocationChangeLis
                     record = new Record();
                     mStartTime = System.currentTimeMillis();
                     mResultShow.setText("总距离");
+                    mDistance = 0;
                 } else {
+                    locationClient.stopLocation();
+                    locationClient.disableBackgroundLocation(true);
                     mEndTime = System.currentTimeMillis();
                     mResultShow.setText(
                             decimalFormat.format(mDistance / 1000d) + "KM");
@@ -111,26 +127,26 @@ public class MainActivity extends Activity implements AMap.OnMyLocationChangeLis
         mResultShow = (TextView) findViewById(R.id.show_all_dis);
     }
 
+    private void initLocation() {
+        //初始化client
+        locationClient = new AMapLocationClient(this.getApplicationContext());
+        locationOption = new AMapLocationClientOption();
+        locationOption.setLocationMode(AMapLocationClientOption.AMapLocationMode.Hight_Accuracy);//可选，设置定位模式，可选的模式有高精度、仅设备、仅网络。默认为高精度模式
+        locationOption.setInterval(2000);//可选，设置定位间隔。默认为2秒
+        //设置定位参数
+        locationClient.setLocationOption(locationOption);
+        // 设置定位监听
+        locationClient.setLocationListener(this);
+    }
+
+
     protected void saveRecord() {
         if (recordList != null && recordList.size() > 0) {
-          /*  DbHepler = new DbAdapter(this);
-            DbHepler.open();
-            String duration = getDuration();
-            float distance = getDistance(list);
-            String average = getAverage(distance);
-            String pathlineSring = getPathLineString(list);
-            AMapLocation firstLocaiton = list.get(0);
-            AMapLocation lastLocaiton = list.get(list.size() - 1);
-            String stratpoint = amapLocationToString(firstLocaiton);
-            String endpoint = amapLocationToString(lastLocaiton);
-            DbHepler.createrecord(String.valueOf(distance), duration, average,
-                    pathlineSring, stratpoint, endpoint, time);
-            DbHepler.close();*/
             String duration = getDuration();
             String average = getAverage(mDistance);
             Record record = new Record();
             record.average = average;
-            record.distance = mDistance;
+            record.distance = getFloat(mDistance);
             record.duration = duration;
             record.average = average;
             record.time = (getcueDate(mStartTime));
@@ -155,7 +171,9 @@ public class MainActivity extends Activity implements AMap.OnMyLocationChangeLis
     }
 
     private String getAverage(float distance) {
-        return String.valueOf(distance / (float) (mEndTime - mStartTime));
+        float average;
+        average = (distance * 3600) / (mEndTime - mStartTime);
+        return String.valueOf(getFloat(average));
     }
 /*
     private float getDistance(List<Location> list) {
@@ -229,7 +247,6 @@ public class MainActivity extends Activity implements AMap.OnMyLocationChangeLis
         myLocationStyle.radiusFillColor(FILL_COLOR);
         // 将自定义的 myLocationStyle 对象添加到地图上
         aMap.setMyLocationStyle(myLocationStyle);
-        aMap.setOnMyLocationChangeListener(this);
     }
 
     /**
@@ -266,29 +283,22 @@ public class MainActivity extends Activity implements AMap.OnMyLocationChangeLis
     protected void onDestroy() {
         super.onDestroy();
         mMapView.onDestroy();
+        locationClient.onDestroy();
+        locationClient = null;
+        locationOption = null;
     }
 
     /**
      * 实时轨迹画线
      */
-    private void redrawline(Location curLocation) {
-        if (curLocation.getLatitude() != 0.0 && curLocation.getLongitude() != 0.0
-                && lastLocation.getLongitude() != 0.0 && lastLocation.getLatitude() != 0.0) {
-            PolylineOptions options = new PolylineOptions();
-            //上一个点的经纬度
-            options.add(new LatLng(lastLocation.getLatitude(), lastLocation.getLongitude()));
-            //当前的经纬度
-            options.add(new LatLng(curLocation.getLatitude(), curLocation.getLongitude()));
-            options.width(10).geodesic(true).color(Color.GREEN);
-            aMap.addPolyline(options);
-        }
-      /*  if (mPolyoptions.getPoints().size() > 1) {
+    private void redrawline() {
+        if (mPolyoptions.getPoints().size() > 1) {
             if (mpolyline != null) {
                 mpolyline.setPoints(mPolyoptions.getPoints());
             } else {
                 mpolyline = aMap.addPolyline(mPolyoptions);
             }
-        }*/
+        }
 //		if (mpolyline != null) {
 //			mpolyline.remove();
 //		}
@@ -313,7 +323,7 @@ public class MainActivity extends Activity implements AMap.OnMyLocationChangeLis
         startActivity(intent);
     }
 
-    private void getDistance(Location curLocation) {
+    private void getDistance(AMapLocation curLocation) {
         if (lastLocation == null)
             return;
         float distance;
@@ -324,24 +334,65 @@ public class MainActivity extends Activity implements AMap.OnMyLocationChangeLis
         mResultShow.setText("总距离:" + decimalFormat.format(mDistance / 1000d) + "KM");
     }
 
+    private float getFloat(float x) {
+        return (float) (Math.round(x * 100) / 100);
+    }
+
     @Override
-    public void onMyLocationChange(Location location) {
-        if (firstLocate) {
-            myLocationStyle.interval(5000);
-            // 将自定义的 myLocationStyle 对象添加到地图上
-            aMap.setMyLocationStyle(myLocationStyle);
-            firstLocate = false;
-        }
-        if (location != null) {
-            getDistance(location);
-            lastLocation = location;
-            LatLng mylocation = new LatLng(location.getLatitude(),
-                    location.getLongitude());
-            recordList.add(location);
+    public void onLocationChanged(AMapLocation aMapLocation) {
+        if (aMapLocation != null && aMapLocation.getAccuracy() < 60) {
+            Toast.makeText(this,"当前速度"+aMapLocation.getSpeed()+"m/s",Toast.LENGTH_SHORT).show();
+            Log.e("amap", aMapLocation.getLongitude() + "");
+            getDistance(aMapLocation);
+            lastLocation = aMapLocation;
+            LatLng mylocation = new LatLng(aMapLocation.getLatitude(),
+                    aMapLocation.getLongitude());
+            recordList.add(aMapLocation);
             mPolyoptions.add(mylocation);
-            redrawline(location);
+            redrawline();
         } else {
             Log.e("amap", "定位失败");
         }
+    }
+
+    private static final String NOTIFICATION_CHANNEL_NAME = "BackgroundLocation";
+    private NotificationManager notificationManager = null;
+    boolean isCreateChannel = false;
+
+    @SuppressLint("NewApi")
+    private Notification buildNotification() {
+
+        Notification.Builder builder = null;
+        Notification notification = null;
+        if (android.os.Build.VERSION.SDK_INT >= 26) {
+            //Android O上对Notification进行了修改，如果设置的targetSDKVersion>=26建议使用此种方式创建通知栏
+            if (null == notificationManager) {
+                notificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+            }
+            String channelId = getPackageName();
+            if (!isCreateChannel) {
+                NotificationChannel notificationChannel = new NotificationChannel(channelId,
+                        NOTIFICATION_CHANNEL_NAME, NotificationManager.IMPORTANCE_DEFAULT);
+                notificationChannel.enableLights(true);//是否在桌面icon右上角展示小圆点
+                notificationChannel.setLightColor(Color.BLUE); //小圆点颜色
+                notificationChannel.setShowBadge(true); //是否在久按桌面图标时显示此渠道的通知
+                notificationManager.createNotificationChannel(notificationChannel);
+                isCreateChannel = true;
+            }
+            builder = new Notification.Builder(getApplicationContext(), channelId);
+        } else {
+            builder = new Notification.Builder(getApplicationContext());
+        }
+        builder.setSmallIcon(R.mipmap.ic_launcher)
+                .setContentTitle("车优道")
+                .setContentText("正在后台运行")
+                .setWhen(System.currentTimeMillis());
+
+        if (android.os.Build.VERSION.SDK_INT >= 16) {
+            notification = builder.build();
+        } else {
+            return builder.getNotification();
+        }
+        return notification;
     }
 }
