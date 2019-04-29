@@ -8,13 +8,17 @@ import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.graphics.Color;
-import android.location.Location;
+import android.graphics.Point;
+import android.os.Build;
 import android.os.Bundle;
+import android.os.SystemClock;
 import android.support.v4.app.ActivityCompat;
 import android.util.Log;
 import android.view.View;
 import android.view.View.OnClickListener;
+import android.widget.Chronometer;
 import android.widget.TextView;
 import android.widget.Toast;
 import android.widget.ToggleButton;
@@ -26,10 +30,11 @@ import com.amap.api.location.AMapLocationListener;
 import com.amap.api.maps.AMap;
 import com.amap.api.maps.AMapUtils;
 import com.amap.api.maps.CameraUpdateFactory;
-import com.amap.api.maps.LocationSource;
 import com.amap.api.maps.MapView;
 import com.amap.api.maps.model.BitmapDescriptorFactory;
 import com.amap.api.maps.model.LatLng;
+import com.amap.api.maps.model.Marker;
+import com.amap.api.maps.model.MarkerOptions;
 import com.amap.api.maps.model.MyLocationStyle;
 import com.amap.api.maps.model.Polyline;
 import com.amap.api.maps.model.PolylineOptions;
@@ -49,6 +54,7 @@ import io.objectbox.Box;
 public class MainActivity extends Activity implements AMapLocationListener {
     private MapView mMapView;
     private AMap aMap;
+    private Chronometer chronometer;
     private AMapLocationClient mLocationClient;
     private AMapLocationClientOption mLocationOption;
     private PolylineOptions mPolyoptions;
@@ -66,18 +72,41 @@ public class MainActivity extends Activity implements AMapLocationListener {
     private static final int FILL_COLOR = Color.argb(10, 0, 0, 180);
     private DecimalFormat decimalFormat = new DecimalFormat("0.00");
     private boolean firstLocate = true;
-    MyLocationStyle myLocationStyle;
+    private MyLocationStyle myLocationStyle;
     private AMapLocationClient locationClient = null;
     private AMapLocationClientOption locationOption = null;
+    //自定义定位小蓝点的Marker
+    private Marker locationMarker;
+    private int slowTimes = 0;
+    private int quickTimes = 0;
 
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.basicmap_activity);
-        ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE, Manifest.permission.READ_PHONE_STATE,
-                        Manifest.permission.ACCESS_COARSE_LOCATION, Manifest.permission.ACCESS_FINE_LOCATION},
-                0);
+        PackageManager pkgManager = getPackageManager();
+        // 读写 sd card 权限非常重要, android6.0默认禁止的, 建议初始化之前就弹窗让用户赋予该权限
+        boolean sdCardWritePermission =
+                pkgManager.checkPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE, getPackageName()) == PackageManager.PERMISSION_GRANTED;
+
+        // read phone state用于获取 imei 设备信息
+        boolean phoneSatePermission =
+                pkgManager.checkPermission(Manifest.permission.READ_PHONE_STATE, getPackageName()) == PackageManager.PERMISSION_GRANTED;
+
+        boolean coarseLocationPermission =
+                pkgManager.checkPermission(Manifest.permission.ACCESS_COARSE_LOCATION, getPackageName()) == PackageManager.PERMISSION_GRANTED;
+
+        boolean fineLocationPermission =
+                pkgManager.checkPermission(Manifest.permission.ACCESS_FINE_LOCATION, getPackageName()) == PackageManager.PERMISSION_GRANTED;
+
+        if (Build.VERSION.SDK_INT >= 23 && !sdCardWritePermission || !phoneSatePermission ||
+                !coarseLocationPermission || !fineLocationPermission) {
+            ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE, Manifest.permission.READ_PHONE_STATE,
+                            Manifest.permission.ACCESS_COARSE_LOCATION, Manifest.permission.ACCESS_FINE_LOCATION},
+                    0);
+        }
+
         mMapView = (MapView) findViewById(R.id.map);
         mMapView.onCreate(savedInstanceState);// 此方法必须重写
         recordBox = ObjectBox.get().boxFor(Record.class);
@@ -93,18 +122,24 @@ public class MainActivity extends Activity implements AMapLocationListener {
     private void init() {
         if (aMap == null) {
             aMap = mMapView.getMap();
-            aMap.moveCamera(CameraUpdateFactory.zoomTo(18));
             setUpMap();
         }
+        chronometer = findViewById(R.id.chronometer);
+        chronometer.setBase(SystemClock.elapsedRealtime());
+
         btn = (ToggleButton) findViewById(R.id.locationbtn);
         btn.setOnClickListener(new OnClickListener() {
             @Override
             public void onClick(View v) {
                 if (btn.isChecked()) {
+                    chronometer.setBase(SystemClock.elapsedRealtime());
+                    startTimer();
+                    aMap.clear(true);
+                    aMap.setMyLocationEnabled(false);
+                    locationMarker = null;
                     //启动后台定位
                     locationClient.startLocation();
                     locationClient.enableBackgroundLocation(2001, buildNotification());
-                    aMap.clear(true);
                     if (record != null) {
                         record = null;
                     }
@@ -114,6 +149,9 @@ public class MainActivity extends Activity implements AMapLocationListener {
                     mResultShow.setText("总距离");
                     mDistance = 0;
                 } else {
+                    chronometer.stop();
+                    locationMarker.remove();
+                    setUpMap();
                     locationClient.stopLocation();
                     locationClient.disableBackgroundLocation(true);
                     mEndTime = System.currentTimeMillis();
@@ -132,8 +170,8 @@ public class MainActivity extends Activity implements AMapLocationListener {
         //初始化client
         locationClient = new AMapLocationClient(this.getApplicationContext());
         locationOption = new AMapLocationClientOption();
-        locationOption.setLocationMode(AMapLocationClientOption.AMapLocationMode.Hight_Accuracy);//可选，设置定位模式，可选的模式有高精度、仅设备、仅网络。默认为高精度模式
-        locationOption.setInterval(2000);//可选，设置定位间隔。默认为2秒
+        locationOption.setLocationMode(AMapLocationClientOption.AMapLocationMode.Device_Sensors);//可选，设置定位模式，可选的模式有高精度、仅设备、仅网络。默认为高精度模式
+        locationOption.setInterval(3000);//可选，设置定位间隔。默认为2秒
         //设置定位参数
         locationClient.setLocationOption(locationOption);
         // 设置定位监听
@@ -144,7 +182,7 @@ public class MainActivity extends Activity implements AMapLocationListener {
         if (recordList != null && recordList.size() > 0) {
             record.average = getAverage(mDistance);
             record.distance = getFloat(mDistance);
-            record.duration = getDuration();
+            record.duration = getChronometerSeconds(chronometer);
             record.time = (getcueDate(mStartTime));
             recordBox.put(record);
         } else {
@@ -182,6 +220,12 @@ public class MainActivity extends Activity implements AMapLocationListener {
         return distance;
     }*/
 
+    private void startTimer() {
+        int hour = (int) ((SystemClock.elapsedRealtime() - chronometer.getBase()) / 1000 / 60);
+        chronometer.setFormat("0" + String.valueOf(hour) + ":%s");
+        chronometer.start();
+    }
+
     private String getPathLineString(List<AMapLocation> list) {
         if (list == null || list.size() == 0) {
             return "";
@@ -215,12 +259,11 @@ public class MainActivity extends Activity implements AMapLocationListener {
         mPolyoptions.color(Color.BLUE);
     }
 
+
     /**
      * 设置一些amap的属性
      */
     private void setUpMap() {
-        aMap.getUiSettings().setMyLocationButtonEnabled(true);// 设置默认定位按钮是否显示
-        aMap.setMyLocationEnabled(true);// 设置为true表示显示定位层并可触发定位，false表示隐藏定位层并不可触发定位，默认是false
         // 自定义系统定位蓝点
         myLocationStyle = new MyLocationStyle();
         // 自定义定位蓝点图标
@@ -232,8 +275,12 @@ public class MainActivity extends Activity implements AMapLocationListener {
         myLocationStyle.strokeWidth(3);
         // 设置圆形的填充颜色
         myLocationStyle.radiusFillColor(FILL_COLOR);
+        myLocationStyle.myLocationType(MyLocationStyle.LOCATION_TYPE_LOCATE);//只定位一次。
         // 将自定义的 myLocationStyle 对象添加到地图上
         aMap.setMyLocationStyle(myLocationStyle);
+        aMap.moveCamera(CameraUpdateFactory.zoomTo(18));
+        aMap.getUiSettings().setMyLocationButtonEnabled(true);// 设置默认定位按钮是否显示
+        aMap.setMyLocationEnabled(true);// 设置为true表示显示定位层并可触发定位，false表示隐藏定位层并不可触发定位，默认是false
     }
 
     /**
@@ -327,24 +374,50 @@ public class MainActivity extends Activity implements AMapLocationListener {
 
     @Override
     public void onLocationChanged(AMapLocation aMapLocation) {
-        if (aMapLocation != null && aMapLocation.getAccuracy() < 60) {
-            Toast.makeText(this,"当前速度"+aMapLocation.getSpeed()+"m/s",Toast.LENGTH_SHORT).show();
-            Log.e("amap", aMapLocation.getLongitude() + "");
-            getDistance(aMapLocation);
-            lastLocation = aMapLocation;
+
+        if (aMapLocation != null ) {
+            if (aMapLocation.getSpeed() < 1) {
+                quickTimes = 0;
+                slowTimes++;
+            } else {
+                quickTimes++;
+                slowTimes = 0;
+            }
+            if (slowTimes > 3)
+                chronometer.stop();
+            if (quickTimes > 2)
+                startTimer();
+
             LatLng mylocation = new LatLng(aMapLocation.getLatitude(),
                     aMapLocation.getLongitude());
-            LocationEntity entity = new LocationEntity();
-            entity.latitude = aMapLocation.getLatitude();
-            entity.longitude = aMapLocation.getLongitude();
-            entity.location = aMapLocation.getLongitude() + "," + aMapLocation.getLatitude();
-            entity.accuracy = aMapLocation.getAccuracy();
-            entity.direction = aMapLocation.getBearing();
-            record.locationPoints.add(entity);
-            recordBox.put(record);
-            recordList.add(aMapLocation);
-            mPolyoptions.add(mylocation);
-            redrawline();
+            lastLocation = aMapLocation;
+            //展示自定义定位小蓝点
+            if (locationMarker == null) {
+                //首次定位
+                locationMarker = aMap.addMarker(new MarkerOptions().position(mylocation)
+                        .icon(BitmapDescriptorFactory.fromResource(R.drawable.gps_point)));
+                locationMarker.setPosition(mylocation);
+
+                aMap.animateCamera(CameraUpdateFactory.newLatLngZoom(mylocation, 17));
+            } else if (aMapLocation.getAccuracy() < 60)
+                startMoveLocationAndMap(mylocation);
+            if (aMapLocation.getSpeed() > 0.2&& aMapLocation.getAccuracy() < 60) {
+                Toast.makeText(this, "当前速度" + aMapLocation.getSpeed() + "m/s", Toast.LENGTH_SHORT).show();
+                Log.e("amap", aMapLocation.getLongitude() + "");
+                getDistance(aMapLocation);
+
+                LocationEntity entity = new LocationEntity();
+                entity.latitude = aMapLocation.getLatitude();
+                entity.longitude = aMapLocation.getLongitude();
+                entity.location = aMapLocation.getLongitude() + "," + aMapLocation.getLatitude();
+                entity.accuracy = aMapLocation.getAccuracy();
+                entity.direction = aMapLocation.getBearing();
+                record.locationPoints.add(entity);
+                recordBox.put(record);
+                recordList.add(aMapLocation);
+                mPolyoptions.add(mylocation);
+                redrawline();
+            }
         } else {
             Log.e("amap", "定位失败");
         }
@@ -390,4 +463,60 @@ public class MainActivity extends Activity implements AMapLocationListener {
         }
         return notification;
     }
+
+    /**
+     * 同时修改自定义定位小蓝点和地图的位置
+     *
+     * @param latLng
+     */
+    private void startMoveLocationAndMap(LatLng latLng) {
+
+        if (locationMarker != null) {
+            LatLng markerLocation = locationMarker.getPosition();
+            Point screenPosition = aMap.getProjection().toScreenLocation(markerLocation);
+            locationMarker.setPosition(latLng);
+
+            aMap.animateCamera(CameraUpdateFactory.newLatLngZoom(latLng, 17));
+        }
+
+    }
+
+    /**
+     *
+     * @param cmt  Chronometer控件
+     * @return 小时+分钟+秒数  的所有秒数
+     */
+    public  static String getChronometerSeconds(Chronometer cmt) {
+        int totalss = 0;
+        String string = cmt.getText().toString();
+        if(string.length()==7){
+
+            String[] split = string.split(":");
+            String string2 = split[0];
+            int hour = Integer.parseInt(string2);
+            int Hours =hour*3600;
+            String string3 = split[1];
+            int min = Integer.parseInt(string3);
+            int Mins =min*60;
+            int  SS =Integer.parseInt(split[2]);
+            totalss = Hours+Mins+SS;
+            return String.valueOf(totalss);
+        }
+
+        else if(string.length()==5){
+
+            String[] split = string.split(":");
+            String string3 = split[0];
+            int min = Integer.parseInt(string3);
+            int Mins =min*60;
+            int  SS =Integer.parseInt(split[1]);
+
+            totalss =Mins+SS;
+            return String.valueOf(totalss);
+        }
+        return String.valueOf(totalss);
+
+
+    }
+
 }

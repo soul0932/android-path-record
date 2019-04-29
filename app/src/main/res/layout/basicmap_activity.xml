@@ -77,6 +77,17 @@
         android:textStyle="bold"
         android:visibility="visible"
         android:layout_below="@+id/title"/>
+
+    <Chronometer
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:id="@+id/chronometer"
+        android:textSize="12pt"
+        android:layout_alignParentBottom="true"
+        android:layout_centerHorizontal="true"
+        android:layout_marginBottom="50dp"
+        android:layout_gravity="center_horizontal"
+        android:focusable="true" />
 </RelativeLayout>
 
 

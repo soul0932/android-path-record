@@ -4,74 +4,94 @@
   "_note3": "If you have VCS merge conflicts, you must resolve them according to ObjectBox docs.",
   "entities": [
     {
-      "id": "1:8527867291075496868",
-      "lastPropertyId": "8:2335074309731912014",
-      "name": "Record",
+      "id": "1:6080472996661549760",
+      "lastPropertyId": "8:2301105712594552639",
+      "name": "LocationEntity",
       "properties": [
         {
-          "id": "1:5352596271202500936",
+          "id": "1:3867067727262312992",
           "name": "id"
         },
         {
-          "id": "2:1876218517999328655",
+          "id": "2:8262594268880190950",
+          "name": "latitude"
+        },
+        {
+          "id": "3:5862897738333163531",
+          "name": "longitude"
+        },
+        {
+          "id": "4:784333521398363947",
+          "name": "locatetime"
+        },
+        {
+          "id": "5:7845853811033239264",
+          "name": "location"
+        },
+        {
+          "id": "6:3749069895470061811",
+          "name": "speed"
+        },
+        {
+          "id": "7:8432477441941237051",
+          "name": "direction"
+        },
+        {
+          "id": "8:2301105712594552639",
+          "name": "accuracy"
+        }
+      ],
+      "relations": []
+    },
+    {
+      "id": "2:122117948207475919",
+      "lastPropertyId": "8:714724834426415317",
+      "name": "Record",
+      "properties": [
+        {
+          "id": "1:3112170296309197922",
+          "name": "id"
+        },
+        {
+          "id": "2:7817827077791307568",
           "name": "distance"
         },
         {
-          "id": "3:8800996797545334104",
+          "id": "3:3391055387508639491",
           "name": "duration"
         },
         {
-          "id": "4:5486105172786229548",
+          "id": "4:870105766591751741",
           "name": "average"
         },
         {
-          "id": "5:2518315983382723095",
+          "id": "5:5449362573495026511",
           "name": "pathlineSring"
         },
         {
-          "id": "6:5694437160712237231",
+          "id": "6:6092924872542265587",
           "name": "stratpoint"
         },
         {
-          "id": "7:926789585288182674",
+          "id": "7:2472905985514704412",
           "name": "endpoint"
         },
         {
-          "id": "8:2335074309731912014",
+          "id": "8:714724834426415317",
           "name": "time"
         }
       ],
       "relations": [
         {
-          "id": "1:5957012476880913251",
+          "id": "1:569623648952347917",
           "name": "locationPoints"
         }
       ]
-    },
-    {
-      "id": "2:8587699688801623749",
-      "lastPropertyId": "3:5764520493567579475",
-      "name": "LocationEntity",
-      "properties": [
-        {
-          "id": "1:1490839445712668606",
-          "name": "id"
-        },
-        {
-          "id": "2:6865296833753280934",
-          "name": "latitude"
-        },
-        {
-          "id": "3:5764520493567579475",
-          "name": "longitude"
-        }
-      ],
-      "relations": []
     }
   ],
-  "lastEntityId": "2:8587699688801623749",
+  "lastEntityId": "2:122117948207475919",
   "lastIndexId": "0:0",
-  "lastRelationId": "1:5957012476880913251",
+  "lastRelationId": "1:569623648952347917",
   "lastSequenceId": "0:0",
   "modelVersion": 4,
   "modelVersionParserMinimum": 4,

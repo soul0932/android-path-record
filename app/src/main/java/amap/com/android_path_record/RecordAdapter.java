@@ -52,7 +52,7 @@ public class RecordAdapter extends BaseAdapter {
 
         Record item = mRecordList.get(position);
         holder.date.setText(item.time);
-        holder.record.setText("距离：" + item.distance + ",平均速度：" + item.average);
+        holder.record.setText("距离：" + item.distance + "米,平均速度：" + item.average + "km/h" + "耗时：" + item.duration);
         return convertView;
     }
 

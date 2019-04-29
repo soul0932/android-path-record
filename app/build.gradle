@@ -11,6 +11,9 @@ android {
         versionCode 1
         versionName "1.0"
         testInstrumentationRunner "android.support.test.runner.AndroidJUnitRunner"
+        ndk {
+            abiFilters "armeabi-v7a"
+        }
     }
     signingConfigs {
         android_config {
@@ -20,6 +23,7 @@ android {
             storePassword 'privatecar'
         }
     }
+
     buildTypes {
         debug {
             minifyEnabled false
