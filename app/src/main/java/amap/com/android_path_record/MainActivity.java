@@ -10,7 +10,6 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
-import android.graphics.Point;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.SystemClock;
@@ -33,8 +32,6 @@ import com.amap.api.maps.CameraUpdateFactory;
 import com.amap.api.maps.MapView;
 import com.amap.api.maps.model.BitmapDescriptorFactory;
 import com.amap.api.maps.model.LatLng;
-import com.amap.api.maps.model.Marker;
-import com.amap.api.maps.model.MarkerOptions;
 import com.amap.api.maps.model.MyLocationStyle;
 import com.amap.api.maps.model.Polyline;
 import com.amap.api.maps.model.PolylineOptions;
@@ -75,8 +72,6 @@ public class MainActivity extends Activity implements AMapLocationListener {
     private MyLocationStyle myLocationStyle;
     private AMapLocationClient locationClient = null;
     private AMapLocationClientOption locationOption = null;
-    //自定义定位小蓝点的Marker
-    private Marker locationMarker;
     private int slowTimes = 0;
     private int quickTimes = 0;
 
@@ -133,10 +128,8 @@ public class MainActivity extends Activity implements AMapLocationListener {
             public void onClick(View v) {
                 if (btn.isChecked()) {
                     chronometer.setBase(SystemClock.elapsedRealtime());
-                    startTimer();
+                    chronometer.start();
                     aMap.clear(true);
-                    aMap.setMyLocationEnabled(false);
-                    locationMarker = null;
                     //启动后台定位
                     locationClient.startLocation();
                     locationClient.enableBackgroundLocation(2001, buildNotification());
@@ -150,8 +143,6 @@ public class MainActivity extends Activity implements AMapLocationListener {
                     mDistance = 0;
                 } else {
                     chronometer.stop();
-                    locationMarker.remove();
-                    setUpMap();
                     locationClient.stopLocation();
                     locationClient.disableBackgroundLocation(true);
                     mEndTime = System.currentTimeMillis();
@@ -170,7 +161,7 @@ public class MainActivity extends Activity implements AMapLocationListener {
         //初始化client
         locationClient = new AMapLocationClient(this.getApplicationContext());
         locationOption = new AMapLocationClientOption();
-        locationOption.setLocationMode(AMapLocationClientOption.AMapLocationMode.Device_Sensors);//可选，设置定位模式，可选的模式有高精度、仅设备、仅网络。默认为高精度模式
+        locationOption.setLocationMode(AMapLocationClientOption.AMapLocationMode.Hight_Accuracy);//可选，设置定位模式，可选的模式有高精度、仅设备、仅网络。默认为高精度模式
         locationOption.setInterval(3000);//可选，设置定位间隔。默认为2秒
         //设置定位参数
         locationClient.setLocationOption(locationOption);
@@ -219,12 +210,6 @@ public class MainActivity extends Activity implements AMapLocationListener {
         }
         return distance;
     }*/
-
-    private void startTimer() {
-        int hour = (int) ((SystemClock.elapsedRealtime() - chronometer.getBase()) / 1000 / 60);
-        chronometer.setFormat("0" + String.valueOf(hour) + ":%s");
-        chronometer.start();
-    }
 
     private String getPathLineString(List<AMapLocation> list) {
         if (list == null || list.size() == 0) {
@@ -275,7 +260,7 @@ public class MainActivity extends Activity implements AMapLocationListener {
         myLocationStyle.strokeWidth(3);
         // 设置圆形的填充颜色
         myLocationStyle.radiusFillColor(FILL_COLOR);
-        myLocationStyle.myLocationType(MyLocationStyle.LOCATION_TYPE_LOCATE);//只定位一次。
+        myLocationStyle.myLocationType(MyLocationStyle.LOCATION_TYPE_FOLLOW);//只定位一次。
         // 将自定义的 myLocationStyle 对象添加到地图上
         aMap.setMyLocationStyle(myLocationStyle);
         aMap.moveCamera(CameraUpdateFactory.zoomTo(18));
@@ -333,14 +318,7 @@ public class MainActivity extends Activity implements AMapLocationListener {
                 mpolyline = aMap.addPolyline(mPolyoptions);
             }
         }
-//		if (mpolyline != null) {
-//			mpolyline.remove();
-//		}
-//		mPolyoptions.visible(true);
-//		mpolyline = mAMap.addPolyline(mPolyoptions);
-//			PolylineOptions newpoly = new PolylineOptions();
-//			mpolyline = mAMap.addPolyline(newpoly.addAll(mPolyoptions.getPoints()));
-//		}
+
     }
 
     @SuppressLint("SimpleDateFormat")
@@ -375,37 +353,27 @@ public class MainActivity extends Activity implements AMapLocationListener {
     @Override
     public void onLocationChanged(AMapLocation aMapLocation) {
 
-        if (aMapLocation != null ) {
-            if (aMapLocation.getSpeed() < 1) {
+        if (aMapLocation != null) {
+
+            if (aMapLocation.getSpeed() < 0.6) {
                 quickTimes = 0;
                 slowTimes++;
             } else {
                 quickTimes++;
                 slowTimes = 0;
             }
-            if (slowTimes > 3)
+            if (slowTimes > 2)
                 chronometer.stop();
             if (quickTimes > 2)
-                startTimer();
-
-            LatLng mylocation = new LatLng(aMapLocation.getLatitude(),
-                    aMapLocation.getLongitude());
-            lastLocation = aMapLocation;
-            //展示自定义定位小蓝点
-            if (locationMarker == null) {
-                //首次定位
-                locationMarker = aMap.addMarker(new MarkerOptions().position(mylocation)
-                        .icon(BitmapDescriptorFactory.fromResource(R.drawable.gps_point)));
-                locationMarker.setPosition(mylocation);
-
+                chronometer.start();
+            if (aMapLocation.getSpeed() > 0.2 && aMapLocation.getAccuracy() < 60) {
+                LatLng mylocation=new LatLng(aMapLocation.getLatitude(),
+                        aMapLocation.getLongitude());
                 aMap.animateCamera(CameraUpdateFactory.newLatLngZoom(mylocation, 17));
-            } else if (aMapLocation.getAccuracy() < 60)
-                startMoveLocationAndMap(mylocation);
-            if (aMapLocation.getSpeed() > 0.2&& aMapLocation.getAccuracy() < 60) {
                 Toast.makeText(this, "当前速度" + aMapLocation.getSpeed() + "m/s", Toast.LENGTH_SHORT).show();
                 Log.e("amap", aMapLocation.getLongitude() + "");
                 getDistance(aMapLocation);
-
+                lastLocation = aMapLocation;
                 LocationEntity entity = new LocationEntity();
                 entity.latitude = aMapLocation.getLatitude();
                 entity.longitude = aMapLocation.getLongitude();
@@ -465,58 +433,36 @@ public class MainActivity extends Activity implements AMapLocationListener {
     }
 
     /**
-     * 同时修改自定义定位小蓝点和地图的位置
-     *
-     * @param latLng
-     */
-    private void startMoveLocationAndMap(LatLng latLng) {
-
-        if (locationMarker != null) {
-            LatLng markerLocation = locationMarker.getPosition();
-            Point screenPosition = aMap.getProjection().toScreenLocation(markerLocation);
-            locationMarker.setPosition(latLng);
-
-            aMap.animateCamera(CameraUpdateFactory.newLatLngZoom(latLng, 17));
-        }
-
-    }
-
-    /**
-     *
-     * @param cmt  Chronometer控件
+     * @param cmt Chronometer控件
      * @return 小时+分钟+秒数  的所有秒数
      */
-    public  static String getChronometerSeconds(Chronometer cmt) {
+    public static String getChronometerSeconds(Chronometer cmt) {
         int totalss = 0;
         String string = cmt.getText().toString();
-        if(string.length()==7){
+        if (string.length() == 7) {
 
             String[] split = string.split(":");
             String string2 = split[0];
             int hour = Integer.parseInt(string2);
-            int Hours =hour*3600;
+            int Hours = hour * 3600;
             String string3 = split[1];
             int min = Integer.parseInt(string3);
-            int Mins =min*60;
-            int  SS =Integer.parseInt(split[2]);
-            totalss = Hours+Mins+SS;
+            int Mins = min * 60;
+            int SS = Integer.parseInt(split[2]);
+            totalss = Hours + Mins + SS;
             return String.valueOf(totalss);
-        }
-
-        else if(string.length()==5){
+        } else if (string.length() == 5) {
 
             String[] split = string.split(":");
             String string3 = split[0];
             int min = Integer.parseInt(string3);
-            int Mins =min*60;
-            int  SS =Integer.parseInt(split[1]);
+            int Mins = min * 60;
+            int SS = Integer.parseInt(split[1]);
 
-            totalss =Mins+SS;
+            totalss = Mins + SS;
             return String.valueOf(totalss);
         }
         return String.valueOf(totalss);
-
-
     }
 
 }
