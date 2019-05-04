@@ -32,6 +32,8 @@ import com.amap.api.maps.CameraUpdateFactory;
 import com.amap.api.maps.MapView;
 import com.amap.api.maps.model.BitmapDescriptorFactory;
 import com.amap.api.maps.model.LatLng;
+import com.amap.api.maps.model.Marker;
+import com.amap.api.maps.model.MarkerOptions;
 import com.amap.api.maps.model.MyLocationStyle;
 import com.amap.api.maps.model.Polyline;
 import com.amap.api.maps.model.PolylineOptions;
@@ -59,7 +61,7 @@ public class MainActivity extends Activity implements AMapLocationListener {
     private Record record;
     private long mStartTime;
     private long mEndTime;
-    private ToggleButton btn;
+    private ToggleButton btn, btnStutus;
     private List<AMapLocation> recordList = new ArrayList<AMapLocation>();
     private AMapLocation lastLocation;
     private float mDistance = 0;
@@ -74,6 +76,9 @@ public class MainActivity extends Activity implements AMapLocationListener {
     private AMapLocationClientOption locationOption = null;
     private int slowTimes = 0;
     private int quickTimes = 0;
+    //自定义定位小蓝点的Marker
+    private Marker locationMarker;
+    private long mRecordTime;
 
 
     @Override
@@ -123,12 +128,18 @@ public class MainActivity extends Activity implements AMapLocationListener {
         chronometer.setBase(SystemClock.elapsedRealtime());
 
         btn = (ToggleButton) findViewById(R.id.locationbtn);
+        btnStutus = (ToggleButton) findViewById(R.id.bt_status);
+        btnStutus.setChecked(true);
         btn.setOnClickListener(new OnClickListener() {
             @Override
             public void onClick(View v) {
                 if (btn.isChecked()) {
-                    chronometer.setBase(SystemClock.elapsedRealtime());
-                    chronometer.start();
+                    btnStutus.setVisibility(View.VISIBLE);
+                    slowTimes = 0;
+                    quickTimes = 0;
+                    mRecordTime = 0;
+                    startTimer();
+                    aMap.setMyLocationEnabled(false);
                     aMap.clear(true);
                     //启动后台定位
                     locationClient.startLocation();
@@ -142,7 +153,11 @@ public class MainActivity extends Activity implements AMapLocationListener {
                     mResultShow.setText("总距离");
                     mDistance = 0;
                 } else {
-                    chronometer.stop();
+                    btnStutus.setVisibility(View.GONE);
+                    setUpMap();
+                    stopTimer();
+                    if (locationMarker != null)
+                        locationMarker.remove();
                     locationClient.stopLocation();
                     locationClient.disableBackgroundLocation(true);
                     mEndTime = System.currentTimeMillis();
@@ -154,7 +169,34 @@ public class MainActivity extends Activity implements AMapLocationListener {
                 }
             }
         });
+
+        btnStutus.setOnClickListener(new OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                if (btnStutus.isChecked())
+                    startTimer();
+                else
+                    stopTimer();
+
+            }
+        });
         mResultShow = (TextView) findViewById(R.id.show_all_dis);
+    }
+
+    private void startTimer() {
+        chronometer.setBase(SystemClock.elapsedRealtime() - mRecordTime);
+        slowTimes = 0;
+        quickTimes = 0;
+        chronometer.start();
+        btnStutus.setChecked(true);
+    }
+
+    private void stopTimer() {
+        mRecordTime = SystemClock.elapsedRealtime() - chronometer.getBase();
+        slowTimes = 0;
+        quickTimes = 0;
+        chronometer.stop();
+        btnStutus.setChecked(false);
     }
 
     private void initLocation() {
@@ -170,7 +212,7 @@ public class MainActivity extends Activity implements AMapLocationListener {
     }
 
     protected void saveRecord() {
-        if (recordList != null && recordList.size() > 0) {
+        if (recordList != null && recordList.size() > 1) {
             record.average = getAverage(mDistance);
             record.distance = getFloat(mDistance);
             record.duration = getChronometerSeconds(chronometer);
@@ -260,7 +302,7 @@ public class MainActivity extends Activity implements AMapLocationListener {
         myLocationStyle.strokeWidth(3);
         // 设置圆形的填充颜色
         myLocationStyle.radiusFillColor(FILL_COLOR);
-        myLocationStyle.myLocationType(MyLocationStyle.LOCATION_TYPE_FOLLOW);//只定位一次。
+        myLocationStyle.myLocationType(MyLocationStyle.LOCATION_TYPE_LOCATE);//只定位一次。
         // 将自定义的 myLocationStyle 对象添加到地图上
         aMap.setMyLocationStyle(myLocationStyle);
         aMap.moveCamera(CameraUpdateFactory.zoomTo(18));
@@ -355,36 +397,51 @@ public class MainActivity extends Activity implements AMapLocationListener {
 
         if (aMapLocation != null) {
 
-            if (aMapLocation.getSpeed() < 0.6) {
-                quickTimes = 0;
+            if (aMapLocation.getSpeed() < 2) {
                 slowTimes++;
+                quickTimes = 0;
             } else {
                 quickTimes++;
                 slowTimes = 0;
             }
-            if (slowTimes > 2)
-                chronometer.stop();
-            if (quickTimes > 2)
-                chronometer.start();
-            if (aMapLocation.getSpeed() > 0.2 && aMapLocation.getAccuracy() < 60) {
-                LatLng mylocation=new LatLng(aMapLocation.getLatitude(),
+            if (slowTimes > 2 && btnStutus.isChecked())
+                stopTimer();
+            if (quickTimes > 2 && !btnStutus.isChecked()) {
+                startTimer();
+            }
+            if (aMapLocation.getAccuracy() < 60) {
+                LatLng mylocation = new LatLng(aMapLocation.getLatitude(),
                         aMapLocation.getLongitude());
-                aMap.animateCamera(CameraUpdateFactory.newLatLngZoom(mylocation, 17));
-                Toast.makeText(this, "当前速度" + aMapLocation.getSpeed() + "m/s", Toast.LENGTH_SHORT).show();
-                Log.e("amap", aMapLocation.getLongitude() + "");
-                getDistance(aMapLocation);
-                lastLocation = aMapLocation;
-                LocationEntity entity = new LocationEntity();
-                entity.latitude = aMapLocation.getLatitude();
-                entity.longitude = aMapLocation.getLongitude();
-                entity.location = aMapLocation.getLongitude() + "," + aMapLocation.getLatitude();
-                entity.accuracy = aMapLocation.getAccuracy();
-                entity.direction = aMapLocation.getBearing();
-                record.locationPoints.add(entity);
-                recordBox.put(record);
-                recordList.add(aMapLocation);
-                mPolyoptions.add(mylocation);
-                redrawline();
+                //展示自定义定位小蓝点
+                if (locationMarker == null) {
+                    //首次定位
+                    locationMarker = aMap.addMarker(new MarkerOptions().position(mylocation)
+                            .icon(BitmapDescriptorFactory.fromResource(R.drawable.icon_car))
+                            .rotateAngle(aMapLocation.getBearing())
+                            .anchor(0.5f, 0.5f));
+                } else {
+                    locationMarker.setPosition(mylocation);
+                    locationMarker.setRotateAngle(aMapLocation.getBearing());
+                }
+                if (btnStutus.isChecked())
+                    aMap.animateCamera(CameraUpdateFactory.newLatLngZoom(mylocation, 17));
+                if (aMapLocation.getSpeed() > 2) {
+                    Toast.makeText(this, "当前速度" + aMapLocation.getSpeed() + "m/s", Toast.LENGTH_SHORT).show();
+                    Log.e("amap", aMapLocation.getLongitude() + "");
+                    getDistance(aMapLocation);
+                    lastLocation = aMapLocation;
+                    LocationEntity entity = new LocationEntity();
+                    entity.latitude = aMapLocation.getLatitude();
+                    entity.longitude = aMapLocation.getLongitude();
+                    entity.location = aMapLocation.getLongitude() + "," + aMapLocation.getLatitude();
+                    entity.accuracy = aMapLocation.getAccuracy();
+                    entity.direction = aMapLocation.getBearing();
+                    record.locationPoints.add(entity);
+                    recordBox.put(record);
+                    recordList.add(aMapLocation);
+                    mPolyoptions.add(mylocation);
+                    redrawline();
+                }
             }
         } else {
             Log.e("amap", "定位失败");

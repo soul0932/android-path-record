@@ -85,9 +85,23 @@
         android:textSize="12pt"
         android:layout_alignParentBottom="true"
         android:layout_centerHorizontal="true"
-        android:layout_marginBottom="50dp"
+        android:layout_marginBottom="60dp"
         android:layout_gravity="center_horizontal"
         android:focusable="true" />
+    <ToggleButton
+        android:id="@+id/bt_status"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignParentBottom="true"
+        android:layout_centerHorizontal="true"
+        android:layout_marginBottom="10dp"
+        android:gravity="center"
+        android:orientation="vertical"
+        android:descendantFocusability="beforeDescendants"
+        android:visibility="gone"
+        android:textOn="暂停"
+        android:textOff="继续">
+    </ToggleButton>
 </RelativeLayout>
 
 
