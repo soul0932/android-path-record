@@ -139,7 +139,6 @@ public class MainActivity extends Activity implements AMapLocationListener {
                     quickTimes = 0;
                     mRecordTime = 0;
                     startTimer();
-                    aMap.setMyLocationEnabled(false);
                     aMap.clear(true);
                     //启动后台定位
                     locationClient.startLocation();
@@ -203,7 +202,7 @@ public class MainActivity extends Activity implements AMapLocationListener {
         //初始化client
         locationClient = new AMapLocationClient(this.getApplicationContext());
         locationOption = new AMapLocationClientOption();
-        locationOption.setLocationMode(AMapLocationClientOption.AMapLocationMode.Hight_Accuracy);//可选，设置定位模式，可选的模式有高精度、仅设备、仅网络。默认为高精度模式
+        locationOption.setLocationMode(AMapLocationClientOption.AMapLocationMode.Battery_Saving);//可选，设置定位模式，可选的模式有高精度、仅设备、仅网络。默认为高精度模式
         locationOption.setInterval(3000);//可选，设置定位间隔。默认为2秒
         //设置定位参数
         locationClient.setLocationOption(locationOption);
@@ -414,6 +413,7 @@ public class MainActivity extends Activity implements AMapLocationListener {
                         aMapLocation.getLongitude());
                 //展示自定义定位小蓝点
                 if (locationMarker == null) {
+                    aMap.setMyLocationEnabled(false);
                     //首次定位
                     locationMarker = aMap.addMarker(new MarkerOptions().position(mylocation)
                             .icon(BitmapDescriptorFactory.fromResource(R.drawable.icon_car))
